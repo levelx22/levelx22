@@ -1,0 +1,261 @@
+/*********
+  Rui Santos
+  Complete project details at https://randomnerdtutorials.com
+*********/
+
+// Load libraries
+#include "BluetoothSerial.h"
+#include <VescUart.h>
+#include <SPI.h>                                          // SPI-Bibliothek hinzufügen
+#include <MFRC522.h> 
+
+VescUart UART;
+
+
+
+
+
+#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
+#include <Wire.h>
+
+
+
+
+// Bluetooth Serial object
+BluetoothSerial EEBlue;
+
+char blueToothVal; //Werte sollen per Bluetooth gesendet werden
+char lastValue;   //speichert den letzten Status der LED (on/off
+
+
+
+
+
+const byte enstperren = 12;
+const byte Led_Vorne = 13;
+const byte Led_Hinten = 14;
+const byte Laden = 27;
+byte RFID_UID [] = {0x04, 0xE1, 0x42, 0xD2, 0xBA, 0x5D, 0x80};
+//byte RFID_UID1 [] = {0x04, 0xE9, 0x42, 0xD2, 0xBA, 0x5D, 0x80};
+//byte RFID_UID2 [] = {0x04, 0xD9, 0x42, 0xD2, 0xBA, 0x5D, 0x80};
+
+
+
+bool RFID_Kontrolle = false;
+int Status = 0;
+
+#define SS_PIN 21                                        // SDA an Pin 9
+#define RST_PIN 22     // RST an Pin 8
+
+
+
+
+MFRC522 mfrc522 (SS_PIN, RST_PIN); 
+
+
+void setup() {
+  //RFID
+  SPI.begin ();                                           // SPI-Verbindung aufbauen
+  mfrc522.PCD_Init ();                                    // Initialisierung des RFID-Empfängers
+ 
+
+
+  
+  pinMode(enstperren, OUTPUT);
+  pinMode(Led_Vorne, OUTPUT);
+  pinMode(Led_Hinten, OUTPUT);
+  EEBlue.begin(9600);
+  Serial.begin(9600);
+  
+  
+  // Bluetooth device name
+  EEBlue.begin("ExitCross");
+  Serial.println("The device started, now you can pair it with bluetooth!");
+
+  
+}
+
+  
+
+
+void loop() {
+
+
+
+
+
+
+
+  
+
+  if (mfrc522.PICC_IsNewCardPresent())
+  {
+    Serial.println(F("Karte gefunden"));
+    if (mfrc522.PICC_ReadCardSerial())
+    {
+      Serial.println(F("Karte gelesen"));
+      // eingelesene UID vergleichen mit RFID_UID
+      RFID_Kontrolle = true;
+      for (int i = 0; i < 4; i++)
+      {
+        if (mfrc522.uid.uidByte [i] != RFID_UID [i])
+        {
+          RFID_Kontrolle = false;
+        }
+
+
+        
+       
+        
+      }
+      Serial.print(F("RFID_Kontrolle ist jetzt "));
+      Serial.println(RFID_Kontrolle);
+
+      if (RFID_Kontrolle && Status == 0)
+      {
+        Serial.println(F("enstperren"));
+        EEBlue.println(F("enstperren"));
+        digitalWrite (enstperren, HIGH);
+        digitalWrite (Led_Vorne, HIGH);
+        digitalWrite (Led_Hinten, HIGH);
+        Status = 1;
+        mfrc522.PICC_HaltA();
+      }
+      else
+      {
+        Serial.println(F("Bedingung 'RFID_Kontrolle && Status == 0' nicht erfüllt"));
+        if (RFID_Kontrolle && Status == 1)
+        {
+          Serial.println(F("Sperran"));
+          EEBlue.println(F("Sperran"));
+          digitalWrite (enstperren, LOW);
+          digitalWrite (Led_Vorne, LOW);
+          digitalWrite (Led_Hinten, LOW);
+          Status = 0;
+          mfrc522.PICC_HaltA();
+        }
+        else
+        {
+          Serial.println(F("Bedingung 'RFID_Kontrolle && Status == 1' nicht erfüllt"));
+        }
+      }
+    }
+    else
+    {
+      Serial.println(F("Lesen der Karte fehlgeschlagen"));
+    }
+  }
+
+
+
+
+  
+  
+
+
+
+  
+    
+
+      
+   
+    
+ 
+
+
+
+  
+   if (Serial.available())
+    EEBlue.write(Serial.read());
+    
+        
+{
+    blueToothVal=(EEBlue.read());//..sollen diese ausgelesen werden
+  }
+  if (blueToothVal=='6') //wenn das Bluetooth Modul eine „1“ empfängt..
+  {
+    digitalWrite(enstperren,HIGH);   //...soll die LED leuchten
+    if (lastValue!='6') //wenn der letzte empfangene Wert keine „1“ war...
+      EEBlue.println(F("Enstperren")); 
+      Serial.println(F("Enstperren"));//..soll auf dem Seriellen Monitor „LED is on“ angezeigt werden
+
+      
+    lastValue=blueToothVal;
+    
+  }
+  else if (blueToothVal=='7') //wenn das Bluetooth Modul „0“ empfängt...
+  {           
+    digitalWrite(enstperren,LOW);  //..soll die LED nicht leuchten
+    if (lastValue!='7')  //wenn der letzte empfangene Wert keine „0“ war...
+      EEBlue.println(F("Sperren")); //..soll auf dem seriellen Monitor „LED is off“ angezeigt werden
+      Serial.println(F("Sperren")); 
+    lastValue=blueToothVal;
+    
+  }
+  
+  if (blueToothVal=='2') //wenn das Bluetooth Modul eine „1“ empfängt..
+  {
+    digitalWrite(Led_Vorne,HIGH);   //...soll die LED leuchten
+    if (lastValue!='2') //wenn der letzte empfangene Wert keine „1“ war...
+      EEBlue.println(F("LED Voren on"));
+      Serial.println(F("LED Voren on"));//..soll auf dem Seriellen Monitor „LED is on“ angezeigt werden
+    lastValue=blueToothVal;
+        
+
+  }
+  else if (blueToothVal=='3') //wenn das Bluetooth Modul „0“ empfängt...
+  {           
+    digitalWrite(Led_Vorne,LOW);  //..soll die LED nicht leuchten
+    if (lastValue!='3')  //wenn der letzte empfangene Wert keine „0“ war...
+      EEBlue.println(F("LED Vorn off")); //..soll auf dem seriellen Monitor „LED is off“ angezeigt werden 
+      Serial.println(F("LED Vorn off"));
+   lastValue=blueToothVal;
+        
+
+  }
+
+  
+  if (blueToothVal=='4') //wenn das Bluetooth Modul eine „1“ empfängt..
+  {
+    digitalWrite(Led_Hinten,HIGH);   //...soll die LED leuchten
+    if (lastValue!='4') //wenn der letzte empfangene Wert keine „1“ war...
+      EEBlue.println(F("LED Hinten on"));
+      Serial.println(F("LED Hinten on"));//..soll auf dem Seriellen Monitor „LED is on“ angezeigt werden
+    lastValue=blueToothVal;
+        
+
+  }
+  else if (blueToothVal=='5') //wenn das Bluetooth Modul „0“ empfängt...
+  {           
+    digitalWrite(Led_Hinten,LOW);  //..soll die LED nicht leuchten
+    if (lastValue!='5')  //wenn der letzte empfangene Wert keine „0“ war...
+      EEBlue.println(F("LED Hinten off"));
+      Serial.println(F("LED Hinten off"));//..soll auf dem seriellen Monitor „LED is off“ angezeigt werden 
+    lastValue=blueToothVal;
+    
+    }
+
+    if (blueToothVal=='7') //wenn das Bluetooth Modul eine „1“ empfängt..
+  {
+    digitalWrite(Laden,HIGH);   //...soll die LED leuchten
+    if (lastValue!='7') //wenn der letzte empfangene Wert keine „1“ war...
+      EEBlue.println(F("QI-Laden on")); //..soll auf dem Seriellen Monitor „LED is on“ angezeigt werden
+    lastValue=blueToothVal;
+        
+
+  }
+  else if (blueToothVal=='8') //wenn das Bluetooth Modul „0“ empfängt...
+  {           
+    digitalWrite(Laden,LOW);  //..soll die LED nicht leuchten
+    if (lastValue!='8')  //wenn der letzte empfangene Wert keine „0“ war...
+      EEBlue.println(F("QI-Laden off")); //..soll auf dem seriellen Monitor „LED is off“ angezeigt werden 
+    lastValue=blueToothVal;
+    
+    }
+    
+ 
+    
+    
+}
